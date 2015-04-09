@@ -17,6 +17,24 @@ def add_where_stmts(schemaname, tablename):
         wheres.append('schemaname = %(schema)s')
     return ' AND '.join(wheres)
 
+def get_table_infos(cur, schemaname, tablename):
+    sql = '''
+SELECT schemaname, tablename, tableowner, tablespace
+FROM pg_tables
+'''
+    where = add_where_stmts(schemaname, tablename)
+    if where:
+        sql += ' WHERE ' + where
+    cur.execute(sql, dict(table=tablename, schema=schemaname))
+    d = {}
+    for r in cur.fetchall():
+        table = get_table_name(r[0], r[1])
+        d[table] = {
+            'owner': r[2],
+            'space': r[3],
+        }
+    return d
+
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
 SELECT n.nspname AS schemaname, c.relname AS tablename, c.reldiststyle AS diststyle
@@ -90,12 +108,26 @@ def group_table_defs(table_defs):
     if defs:
         yield defs
 
-def build_stmts(table_defs, table_diststyles):
+def build_stmts(table_defs, table_diststyles, table_infos):
     for defs in group_table_defs(table_defs):
         schemaname = defs[0]['schemaname']
         tablename = defs[0]['tablename']
         table = get_table_name(schemaname, tablename)
-        s = 'CREATE TABLE %s (\n' % table
+        table_info = table_infos.get(table)
+        if table_info:
+            owner = table_info['owner'] or ''
+            space = table_info['space'] or ''
+        else:
+            owner = space = ''
+        s = ('--\n'
+             '-- Name: %(table)s; Type: TABLE; Schema: %(schema)s; Owner: %(owner)s; Tablespace: %(space)s\n'
+             '--\n\n') % {
+                'table': tablename,
+                'schema': schemaname,
+                'owner': owner,
+                'space': space,
+            }
+        s += 'CREATE TABLE %s (\n' % table
         cols = []
         for d in defs:
             c = []
@@ -117,7 +149,7 @@ def build_stmts(table_defs, table_diststyles):
         s += '\n)'
         if table_diststyles.get(table) == 'ALL':
             s += ' DISTSTYLE ALL '
-        s += ';'
+        s += ';\n'
         yield table, s
 
 def show_create_table(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
@@ -129,7 +161,8 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
             cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
         table_diststyles = get_table_diststyles(cur, schemaname, tablename)
         table_defs = get_table_defs(cur, schemaname, tablename)
-        statements = build_stmts(table_defs, table_diststyles)
+        table_infos = get_table_infos(cur, schemaname, tablename)
+        statements = build_stmts(table_defs, table_diststyles, table_infos)
         return statements
     finally:
         cur.close()
@@ -137,7 +170,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
 def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
         host, user, password, dbname, schemaname, tablename, port):
-        print ('-- Table: %s\n%s\n' % (table, stmt))
+        print(stmt)
 
 if __name__ == '__main__':
     import argparse
