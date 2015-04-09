@@ -9,21 +9,44 @@ import psycopg2
 
 __all__ = ['show_create_table']
 
-def get_table_defs(conn, schemaname, tablename):
-    cur = conn.cursor()
-    if schemaname:
-        cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
+def add_where_stmts(schemaname, tablename):
     wheres = []
     if tablename:
         wheres.append('tablename = %(table)s')
     if schemaname:
         wheres.append('schemaname = %(schema)s')
+    return ' AND '.join(wheres)
+
+def get_table_diststyles(cur, schemaname, tablename):
+    sql = '''
+    SELECT n.nspname AS schemaname, c.relname AS tablename, c.reldiststyle AS diststyle
+    FROM pg_namespace n, pg_class c
+    WHERE n.oid = c.relnamespace AND pg_table_is_visible(c.oid)
+    '''
+    where = add_where_stmts(schemaname, tablename)
+    if where:
+        sql += ' AND ' + where
+    cur.execute(sql, dict(table=tablename, schema=schemaname))
+    d = {}
+    for r in cur.fetchall():
+        table = get_table_name(r)
+        if r[2] == 0:
+            d[table] = 'EVEN'
+        elif r[2] == 1:
+            d[table] = 'KEY'
+        elif r[2] == 8:
+            d[table] = 'ALL'
+        else:
+            d[table] = 'UNKNOWN'
+    return d
+
+def get_table_defs(cur, schemaname, tablename):
     sql = 'SELECT * FROM pg_table_def'
-    if wheres:
-        sql += ' WHERE ' + ' AND '.join(wheres)
+    where = add_where_stmts(schemaname, tablename)
+    if where:
+        sql += ' WHERE ' + where
     cur.execute(sql, dict(table=tablename, schema=schemaname))
     defs = cur.fetchall()
-    cur.close()
     return defs
 
 def get_table_name(r):
@@ -44,7 +67,7 @@ def group_table_defs(table_defs):
     if defs:
         yield defs
 
-def build_stmts(table_defs):
+def build_stmts(table_defs, table_diststyles):
     for defs in group_table_defs(table_defs):
         table = get_table_name(defs[0])
         s = 'CREATE TABLE %s (\n' % table
@@ -64,14 +87,22 @@ def build_stmts(table_defs):
                 c.append('NOT NULL')
             cols.append(' '.join(c))
         s += ',\n'.join(map(lambda c:'    '+c, cols))
-        s += '\n);'
+        s += '\n)'
+        if table_diststyles.get(table) == 'ALL':
+            s += ' DISTSTYLE ALL '
+        s += ';'
         yield table, s
 
 def show_create_table(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     conn = psycopg2.connect(
         host=host, port=port, database=dbname, user=user, password=password)
-    table_defs = get_table_defs(conn, schemaname, tablename)
-    statements = build_stmts(table_defs)
+    cur = conn.cursor()
+    if schemaname:
+        cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
+    table_defs = get_table_defs(cur, schemaname, tablename)
+    table_diststyles = get_table_diststyles(cur, schemaname, tablename)
+    cur.close()
+    statements = build_stmts(table_defs, table_diststyles)
     return statements
 
 def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
