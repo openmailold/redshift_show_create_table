@@ -77,7 +77,7 @@ def build_stmts(table_defs, table_diststyles):
             c.append('"%s"' % d[2]) # column
             c.append(d[3]) # type
             if d[4] != 'none': # encode
-                c.append('encode')
+                c.append('ENCODE')
                 c.append(d[4])
             if d[5]: # distkey
                 c.append('DISTKEY')
