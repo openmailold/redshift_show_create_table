@@ -27,7 +27,9 @@ def get_table_defs(conn, schemaname, tablename):
     return defs
 
 def get_table_name(r):
-    return '%s.%s' % (r[0], r[1])
+    if '.' not in r[0] and '.' not in r[1]:
+        return '%s.%s' % (r[0], r[1])
+    return '"%s"."%s"' % (r[0], r[1])
 
 def group_table_defs(table_defs):
     curr_table = None
@@ -45,7 +47,7 @@ def group_table_defs(table_defs):
 def build_stmts(table_defs):
     for defs in group_table_defs(table_defs):
         table = get_table_name(defs[0])
-        s = 'CREATE TABLE "%s" (\n' % table
+        s = 'CREATE TABLE %s (\n' % table
         cols = []
         for d in defs:
             c = []
