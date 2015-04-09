@@ -13,12 +13,15 @@ def get_table_defs(conn, schemaname, tablename):
     cur = conn.cursor()
     if schemaname:
         cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
+    wheres = []
     if tablename:
-        cur.execute(
-            'SELECT * FROM pg_table_def WHERE tablename = %s',
-            (tablename, ))
-    else:
-        cur.execute('SELECT * FROM pg_table_def')
+        wheres.append('tablename = %(table)s')
+    if schemaname:
+        wheres.append('schemaname = %(schema)s')
+    sql = 'SELECT * FROM pg_table_def'
+    if wheres:
+        sql += ' WHERE ' + ' AND '.join(wheres)
+    cur.execute(sql, dict(table=tablename, schema=schemaname))
     defs = cur.fetchall()
     cur.close()
     return defs
