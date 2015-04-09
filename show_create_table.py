@@ -19,17 +19,17 @@ def add_where_stmts(schemaname, tablename):
 
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
-    SELECT n.nspname AS schemaname, c.relname AS tablename, c.reldiststyle AS diststyle
-    FROM pg_namespace n, pg_class c
-    WHERE n.oid = c.relnamespace AND pg_table_is_visible(c.oid)
-    '''
+SELECT n.nspname AS schemaname, c.relname AS tablename, c.reldiststyle AS diststyle
+FROM pg_namespace n, pg_class c
+WHERE n.oid = c.relnamespace AND pg_table_is_visible(c.oid)
+'''
     where = add_where_stmts(schemaname, tablename)
     if where:
         sql += ' AND ' + where
     cur.execute(sql, dict(table=tablename, schema=schemaname))
     d = {}
     for r in cur.fetchall():
-        table = get_table_name(r)
+        table = get_table_name(r[0], r[1])
         if r[2] == 0:
             d[table] = 'EVEN'
         elif r[2] == 1:
@@ -41,24 +41,47 @@ def get_table_diststyles(cur, schemaname, tablename):
     return d
 
 def get_table_defs(cur, schemaname, tablename):
-    sql = 'SELECT * FROM pg_table_def'
+    sql = '''
+SELECT
+    n.nspname AS "schemaname",
+    c.relname AS "tablename",
+    a.attname AS "column",
+    format_type(a.atttypid, a.atttypmod) AS "type",
+    format_encoding(a.attencodingtype::integer) AS "encoding",
+    a.attisdistkey AS "distkey",
+    a.attsortkeyord AS "sortkey",
+    a.attnotnull AS "notnull",
+    a.atthasdef AS "hasdef",
+    d.adsrc as "default"
+FROM pg_attribute a
+JOIN pg_class c ON c.oid = a.attrelid
+JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_attrdef d ON d.adrelid = c.oid AND d.adnum = a.attnum
+WHERE a.attnum > 0 AND NOT a.attisdropped AND pg_table_is_visible(c.oid)
+'''
     where = add_where_stmts(schemaname, tablename)
     if where:
-        sql += ' WHERE ' + where
+        sql += ' AND ' + where
+    sql += ' ORDER BY n.nspname, c.relname, a.attnum;'
     cur.execute(sql, dict(table=tablename, schema=schemaname))
-    defs = cur.fetchall()
-    return defs
+    out = []
+    for r in cur.fetchall():
+        out.append(dict(zip(
+            ['schemaname', 'tablename', 'column', 'type',
+             'encoding', 'distkey', 'sortkey', 'notnull',
+             'hasdef', 'default'], r)))
+    return out
 
-def get_table_name(r):
-    if '.' not in r[0] and '.' not in r[1]:
-        return '%s.%s' % (r[0], r[1])
-    return '"%s"."%s"' % (r[0], r[1])
+def get_table_name(schema, table):
+    if '.' not in schema and '.' not in table:
+        return '%s.%s' % (schema, table)
+    return '"%s"."%s"' % (schema, table)
 
 def group_table_defs(table_defs):
     curr_table = None
     defs = []
     for r in table_defs:
-        table = get_table_name(r)
+        table = get_table_name(r['schemaname'], r['tablename'])
         if curr_table and curr_table != table:
             yield defs
             defs = []
@@ -69,24 +92,28 @@ def group_table_defs(table_defs):
 
 def build_stmts(table_defs, table_diststyles):
     for defs in group_table_defs(table_defs):
-        table = get_table_name(defs[0])
+        schemaname = defs[0]['schemaname']
+        tablename = defs[0]['tablename']
+        table = get_table_name(schemaname, tablename)
         s = 'CREATE TABLE %s (\n' % table
         cols = []
         for d in defs:
             c = []
-            c.append('"%s"' % d[2]) # column
-            c.append(d[3]) # type
-            if d[4] != 'none': # encode
+            c.append('"%s"' % d['column'])
+            c.append(d['type'])
+            if d['encoding'] != 'none':
                 c.append('ENCODE')
-                c.append(d[4])
-            if d[5]: # distkey
+                c.append(d['encoding'])
+            if d['distkey']:
                 c.append('DISTKEY')
-            if d[6]: # sortkey
+            if d['sortkey']:
                 c.append('SORTKEY')
-            if d[7]: # notnull
+            if d['notnull']:
                 c.append('NOT NULL')
+            if d['hasdef']:
+                c.append('DEFAULT %s' % d['default'])
             cols.append(' '.join(c))
-        s += ',\n'.join(map(lambda c:'    '+c, cols))
+        s += ',\n'.join(map(lambda c: '    '+c, cols))
         s += '\n)'
         if table_diststyles.get(table) == 'ALL':
             s += ' DISTSTYLE ALL '
@@ -97,13 +124,15 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
     conn = psycopg2.connect(
         host=host, port=port, database=dbname, user=user, password=password)
     cur = conn.cursor()
-    if schemaname:
-        cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
-    table_defs = get_table_defs(cur, schemaname, tablename)
-    table_diststyles = get_table_diststyles(cur, schemaname, tablename)
-    cur.close()
-    statements = build_stmts(table_defs, table_diststyles)
-    return statements
+    try:
+        if schemaname:
+            cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
+        table_diststyles = get_table_diststyles(cur, schemaname, tablename)
+        table_defs = get_table_defs(cur, schemaname, tablename)
+        statements = build_stmts(table_defs, table_diststyles)
+        return statements
+    finally:
+        cur.close()
 
 def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
