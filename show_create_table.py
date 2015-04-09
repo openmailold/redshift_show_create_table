@@ -72,7 +72,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
 def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
         host, user, password, dbname, schemaname, tablename, port):
-        print 'table:', table
+        print '-- Table:', table
         print stmt
         print
 
