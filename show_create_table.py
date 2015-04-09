@@ -9,6 +9,7 @@ import psycopg2
 
 __all__ = ['show_create_table']
 
+
 def add_where_stmts(schemaname, tablename):
     wheres = []
     if tablename:
@@ -16,6 +17,7 @@ def add_where_stmts(schemaname, tablename):
     if schemaname:
         wheres.append('schemaname = %(schema)s')
     return ' AND '.join(wheres)
+
 
 def get_table_infos(cur, schemaname, tablename):
     sql = '''
@@ -34,6 +36,7 @@ FROM pg_tables
             'space': r[3],
         }
     return d
+
 
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
@@ -57,6 +60,7 @@ WHERE n.oid = c.relnamespace AND pg_table_is_visible(c.oid)
         else:
             d[table] = 'UNKNOWN'
     return d
+
 
 def get_table_defs(cur, schemaname, tablename):
     sql = '''
@@ -90,10 +94,12 @@ WHERE a.attnum > 0 AND NOT a.attisdropped AND pg_table_is_visible(c.oid) AND c.r
              'hasdef', 'default'], r)))
     return out
 
+
 def get_table_name(schema, table):
     if '.' not in schema and '.' not in table:
         return '%s.%s' % (schema, table)
     return '"%s"."%s"' % (schema, table)
+
 
 def group_table_defs(table_defs):
     curr_table = None
@@ -107,6 +113,7 @@ def group_table_defs(table_defs):
         defs.append(r)
     if defs:
         yield defs
+
 
 def build_stmts(table_defs, table_diststyles, table_infos):
     for defs in group_table_defs(table_defs):
@@ -145,12 +152,13 @@ def build_stmts(table_defs, table_diststyles, table_infos):
             if d['hasdef']:
                 c.append('DEFAULT %s' % d['default'])
             cols.append(' '.join(c))
-        s += ',\n'.join(map(lambda c: '    '+c, cols))
+        s += ',\n'.join(map(lambda c: '    ' + c, cols))
         s += '\n)'
         if table_diststyles.get(table) == 'ALL':
-            s += ' DISTSTYLE ALL '
+            s += ' DISTSTYLE ALL'
         s += ';\n'
         yield table, s
+
 
 def show_create_table(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     conn = psycopg2.connect(
@@ -158,7 +166,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
     cur = conn.cursor()
     try:
         if schemaname:
-            cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
+            cur.execute('SET SEARCH_PATH = %s;', (schemaname,))
         table_diststyles = get_table_diststyles(cur, schemaname, tablename)
         table_defs = get_table_defs(cur, schemaname, tablename)
         table_infos = get_table_infos(cur, schemaname, tablename)
@@ -167,10 +175,12 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
     finally:
         cur.close()
 
+
 def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
-        host, user, password, dbname, schemaname, tablename, port):
+            host, user, password, dbname, schemaname, tablename, port):
         print(stmt)
+
 
 if __name__ == '__main__':
     import argparse
