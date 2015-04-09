@@ -58,7 +58,7 @@ def build_stmts(table_defs):
             if d[7]: # notnull
                 c.append('NOT NULL')
             cols.append(' '.join(c))
-        s += ',\n'.join(map(lambda c:' '+c, cols))
+        s += ',\n'.join(map(lambda c:'    '+c, cols))
         s += '\n);'
         yield table, s
 
