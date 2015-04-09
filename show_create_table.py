@@ -176,7 +176,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
         cur.close()
 
 
-def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
+def main(host, user, password, dbname, outfile, format, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
             host, user, password, dbname, schemaname, tablename, port):
         print(stmt)
@@ -185,12 +185,16 @@ def main(host, user, password, dbname, schemaname=None, tablename=None, port=543
 if __name__ == '__main__':
     import argparse
 
+    # arguments similar to those for pg_dump
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('-h', '--host', required=True, dest='host')
     parser.add_argument('-U', '--user', required=True, dest='user')
     parser.add_argument('-d', '--dbname', required=True, dest='dbname')
     parser.add_argument('-W', '--password', required=True, dest='password')
     parser.add_argument('-p', '--port', default=5432, dest='port')
+    parser.add_argument('-f', '--file', default=False, dest='file')  # currently requires --format
+    # format: currently only supports 'directory'
+    parser.add_argument('-F', '--format', default='directory', dest='format')
     parser.add_argument('--schema', dest='schemaname')
     parser.add_argument('--table', dest='tablename')
 
@@ -200,8 +204,10 @@ if __name__ == '__main__':
         args.user,
         args.password,
         args.dbname,
+        args.file,
+        args.format,
         args.schemaname,
         args.tablename,
-        args.port
+        args.port,
     )
 
