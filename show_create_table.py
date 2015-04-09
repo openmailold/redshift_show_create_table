@@ -42,7 +42,7 @@ def group_table_defs(table_defs):
 def build_stmts(table_defs):
     for defs in group_table_defs(table_defs):
         table = get_table_name(defs[0])
-        s = 'create table "%s" (\n' % table
+        s = 'CREATE TABLE "%s" (\n' % table
         cols = []
         for d in defs:
             c = []
@@ -52,11 +52,11 @@ def build_stmts(table_defs):
                 c.append('encode')
                 c.append(d[4])
             if d[5]: # distkey
-                c.append('distkey')
+                c.append('DISTKEY')
             if d[6]: # sortkey
-                c.append('sortkey')
+                c.append('SORTKEY')
             if d[7]: # notnull
-                c.append('not null')
+                c.append('NOT NULL')
             cols.append(' '.join(c))
         s += ',\n'.join(map(lambda c:' '+c, cols))
         s += '\n);'
