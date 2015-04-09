@@ -77,9 +77,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
 def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
         host, user, password, dbname, schemaname, tablename, port):
-        print '-- Table:', table
-        print stmt
-        print
+        print ('-- Table: %s\n%s\n' % (table, stmt))
 
 if __name__ == '__main__':
     import argparse
