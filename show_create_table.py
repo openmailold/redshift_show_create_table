@@ -35,6 +35,12 @@ FROM pg_tables
         }
     return d
 
+DISTSTYLES = {
+    0: 'EVEN',
+    1: 'KEY',
+    8: 'ALL',
+}
+
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
 SELECT n.nspname AS schemaname, c.relname AS tablename, c.reldiststyle AS diststyle
@@ -48,14 +54,7 @@ WHERE n.oid = c.relnamespace AND pg_table_is_visible(c.oid)
     d = {}
     for r in cur.fetchall():
         table = get_table_name(r[0], r[1])
-        if r[2] == 0:
-            d[table] = 'EVEN'
-        elif r[2] == 1:
-            d[table] = 'KEY'
-        elif r[2] == 8:
-            d[table] = 'ALL'
-        else:
-            d[table] = 'UNKNOWN'
+        d[table] = DISTSTYLES.get(r[2])
     return d
 
 def get_table_defs(cur, schemaname, tablename):
