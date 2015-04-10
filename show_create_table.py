@@ -178,7 +178,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
         cur.close()
 
 
-#TODO: deal with case where no schemaname specified
+# TODO: deal with case where no schemaname specified
 def main(host, user, password, dbname, filename, format, schemaname=None, tablename=None, port=5432):
     for table, stmt in show_create_table(
             host, user, password, dbname, schemaname, tablename, port):
@@ -203,17 +203,21 @@ if __name__ == '__main__':
     import argparse
 
     # arguments similar to those for pg_dump
-    parser = argparse.ArgumentParser(add_help=False)
+    parser = argparse.ArgumentParser(add_help=False)  # add_help=False because of conflict with '-h'
     parser.add_argument('-h', '--host', required=True, dest='host')
     parser.add_argument('-U', '--user', required=True, dest='user')
     parser.add_argument('-d', '--dbname', required=True, dest='dbname')
     parser.add_argument('-W', '--password', required=True, dest='password')
     parser.add_argument('-p', '--port', default=5432, dest='port')
-    parser.add_argument('-f', '--file', default=False, dest='file')  # currently requires --format
-    # format: currently only supports 'directory'
-    parser.add_argument('-F', '--format', default='directory', dest='format')
-    parser.add_argument('--schema', dest='schemaname')
-    parser.add_argument('--table', dest='tablename')
+    parser.add_argument('-f', '--file', default=False, dest='file',
+                        help='file/directory to write output to, defaults to standard output')
+    parser.add_argument('-F', '--format', default='directory', dest='format',
+                        choices=['directory'],
+                        help='Requires --file, valid options: directory')
+    parser.add_argument('-n', '--schema', dest='schemaname',
+                        help='Name of schema to show tables from, if not provided it will iterate over all non-system'
+                             'schemas')
+    parser.add_argument('-t', '--table', dest='tablename')
 
     args = parser.parse_args()
     main(
@@ -227,4 +231,3 @@ if __name__ == '__main__':
         args.tablename,
         args.port,
     )
-
