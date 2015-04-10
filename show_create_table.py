@@ -6,6 +6,7 @@
 """
 
 import psycopg2
+from os import path, makedirs
 
 __all__ = ['show_create_table']
 
@@ -177,15 +178,24 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
         cur.close()
 
 
-def main(host, user, password, dbname, outfile, format, schemaname=None, tablename=None, port=5432):
-    if outfile:
-        if format == 'directory':
-            raise RuntimeError('Not implemented yet')
+#TODO: deal with case where no schemaname specified
+def main(host, user, password, dbname, filename, format, schemaname=None, tablename=None, port=5432):
+    for table, stmt in show_create_table(
+            host, user, password, dbname, schemaname, tablename, port):
+        if filename:
+            if format == 'directory':
+                basedir = filename
+                if not path.exists(basedir):
+                    makedirs(basedir)
+                schemadir = path.join(basedir, schemaname)
+                if not path.exists(schemadir):
+                    makedirs(schemadir)
+                full_filename = path.join(schemadir, table + '.sql')
+                with open(full_filename, 'w') as f:
+                    f.write(stmt + '\n')
+            else:
+                raise RuntimeError('Invalid format: ' + format)
         else:
-            raise RuntimeError('Invalid format: ' + format)
-    else:
-        for table, stmt in show_create_table(
-                host, user, password, dbname, schemaname, tablename, port):
             print(stmt)
 
 
