@@ -162,11 +162,26 @@ def build_stmts(table_defs, table_diststyles, table_infos):
         yield table, s
 
 
+# gets all non-system schemas
+def get_all_schemas(cur):
+    skip_schemas = ['information_schema', 'pg_catalog', 'sys']
+    sql = 'SELECT schemaname FROM pg_stat_all_tables GROUP BY schemaname'
+    cur.execute(sql)
+    schemas = []
+    for s in cur.fetchall():
+        schema = s[0]
+        if not schema in skip_schemas:
+            schemas.append(schema)
+    return schemas
+
+
 def show_create_table(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     conn = psycopg2.connect(
         host=host, port=port, database=dbname, user=user, password=password)
     cur = conn.cursor()
     try:
+        #if schemaname is None and tablename is None:  # scan all non-system schemas and tables
+
         if schemaname:
             cur.execute('SET SEARCH_PATH = %s;', (schemaname,))
         table_diststyles = get_table_diststyles(cur, schemaname, tablename)
