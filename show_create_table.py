@@ -154,8 +154,9 @@ def build_stmts(table_defs, table_diststyles, table_infos):
             cols.append(' '.join(c))
         s += ',\n'.join(map(lambda c: '    ' + c, cols))
         s += '\n)'
-        if table_diststyles.get(table) == 'ALL':
-            s += ' DISTSTYLE ALL'
+        diststyle = table_diststyles.get(table)
+        if diststyle:
+            s += ' DISTSTYLE ' + diststyle
         s += ';\n'
         yield table, s
 
@@ -177,9 +178,15 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
 
 
 def main(host, user, password, dbname, outfile, format, schemaname=None, tablename=None, port=5432):
-    for table, stmt in show_create_table(
-            host, user, password, dbname, schemaname, tablename, port):
-        print(stmt)
+    if outfile:
+        if format == 'directory':
+            raise RuntimeError('Not implemented yet')
+        else:
+            raise RuntimeError('Invalid format: ' + format)
+    else:
+        for table, stmt in show_create_table(
+                host, user, password, dbname, schemaname, tablename, port):
+            print(stmt)
 
 
 if __name__ == '__main__':
