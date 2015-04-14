@@ -5,8 +5,10 @@
  xiuming chen <cc@cxm.cc>
 """
 
-import psycopg2
 from os import path, makedirs
+
+import psycopg2
+
 
 __all__ = ['show_create_table']
 
@@ -44,6 +46,7 @@ DISTSTYLES = {
     1: 'KEY',
     8: 'ALL',
 }
+
 
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
@@ -182,7 +185,7 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
         if schemaname is None and tablename is None:  # scan all non-system schemas and tables
             schema_list = get_all_schemas(cur)
             search_path_sql = 'SET SEARCH_PATH = ' + (','.join(schema_list)) + ';'
-            #print search_path_sql
+            # print search_path_sql
             cur.execute(search_path_sql)
         elif schemaname:
             cur.execute('SET SEARCH_PATH = %s;', (schemaname,))
