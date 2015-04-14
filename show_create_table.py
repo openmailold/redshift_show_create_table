@@ -5,9 +5,13 @@
  xiuming chen <cc@cxm.cc>
 """
 
+from os import path, makedirs
+
 import psycopg2
 
+
 __all__ = ['show_create_table']
+
 
 def add_where_stmts(schemaname, tablename):
     wheres = []
@@ -16,6 +20,7 @@ def add_where_stmts(schemaname, tablename):
     if schemaname:
         wheres.append('schemaname = %(schema)s')
     return ' AND '.join(wheres)
+
 
 def get_table_infos(cur, schemaname, tablename):
     sql = '''
@@ -35,11 +40,13 @@ FROM pg_tables
         }
     return d
 
+
 DISTSTYLES = {
     0: 'EVEN',
     1: 'KEY',
     8: 'ALL',
 }
+
 
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
@@ -56,6 +63,7 @@ WHERE n.oid = c.relnamespace AND pg_table_is_visible(c.oid)
         table = get_table_name(r[0], r[1])
         d[table] = DISTSTYLES.get(r[2])
     return d
+
 
 def get_table_defs(cur, schemaname, tablename):
     sql = '''
@@ -89,10 +97,12 @@ WHERE a.attnum > 0 AND NOT a.attisdropped AND pg_table_is_visible(c.oid) AND c.r
              'hasdef', 'default'], r)))
     return out
 
+
 def get_table_name(schema, table):
     if '.' not in schema and '.' not in table:
         return '%s.%s' % (schema, table)
     return '"%s"."%s"' % (schema, table)
+
 
 def group_table_defs(table_defs):
     curr_table = None
@@ -106,6 +116,7 @@ def group_table_defs(table_defs):
         defs.append(r)
     if defs:
         yield defs
+
 
 def build_stmts(table_defs, table_diststyles, table_infos):
     for defs in group_table_defs(table_defs):
@@ -144,44 +155,96 @@ def build_stmts(table_defs, table_diststyles, table_infos):
             if d['hasdef']:
                 c.append('DEFAULT %s' % d['default'])
             cols.append(' '.join(c))
-        s += ',\n'.join(map(lambda c: '    '+c, cols))
+        s += ',\n'.join(map(lambda c: '    ' + c, cols))
         s += '\n)'
-        if table_diststyles.get(table) == 'ALL':
-            s += ' DISTSTYLE ALL '
+        diststyle = table_diststyles.get(table)
+        if diststyle:
+            s += ' DISTSTYLE ' + diststyle
         s += ';\n'
-        yield table, s
+        yield schemaname, table, s
+
+
+# gets list of all non-system schemas
+def get_all_schemas(cur):
+    skip_schemas = ['information_schema', 'pg_catalog', 'sys']
+    sql = 'SELECT schemaname FROM pg_stat_all_tables GROUP BY schemaname'
+    cur.execute(sql)
+    schemas = []
+    for s in cur.fetchall():
+        schema = s[0]
+        if not schema in skip_schemas:
+            schemas.append(schema)
+    return schemas
+
 
 def show_create_table(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
     conn = psycopg2.connect(
         host=host, port=port, database=dbname, user=user, password=password)
     cur = conn.cursor()
     try:
-        if schemaname:
-            cur.execute('SET SEARCH_PATH = %s;', (schemaname, ))
-        table_diststyles = get_table_diststyles(cur, schemaname, tablename)
-        table_defs = get_table_defs(cur, schemaname, tablename)
-        table_infos = get_table_infos(cur, schemaname, tablename)
-        statements = build_stmts(table_defs, table_diststyles, table_infos)
+        if schemaname is None and tablename is None:  # scan all non-system schemas and tables
+            schema_list = get_all_schemas(cur)
+            search_path_sql = 'SET SEARCH_PATH = ' + (','.join(schema_list)) + ';'
+            # print search_path_sql
+            cur.execute(search_path_sql)
+        elif schemaname:
+            cur.execute('SET SEARCH_PATH = %s;', (schemaname,))
+            schema_list = [schemaname]
+        else:
+            raise RuntimeError('If passing a table name, schema name must also be provided')
+
+        statements = []
+        for schema in schema_list:
+            table_diststyles = get_table_diststyles(cur, schema, tablename)
+            table_defs = get_table_defs(cur, schema, tablename)
+            table_infos = get_table_infos(cur, schema, tablename)
+            for s in build_stmts(table_defs, table_diststyles, table_infos):
+                statements.append(s)
         return statements
     finally:
         cur.close()
 
-def main(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
-    for table, stmt in show_create_table(
-        host, user, password, dbname, schemaname, tablename, port):
-        print(stmt)
+
+# TODO: deal with case where no schemaname specified
+def main(host, user, password, dbname, filename, format, schemaname=None, tablename=None, port=5432):
+    for schema, table, stmt in show_create_table(
+            host, user, password, dbname, schemaname, tablename, port):
+        if filename:
+            if format == 'directory':
+                basedir = filename
+                if not path.exists(basedir):
+                    makedirs(basedir)
+                schemadir = path.join(basedir, schema)
+                if not path.exists(schemadir):
+                    makedirs(schemadir)
+                full_filename = path.join(schemadir, table + '.sql')
+                with open(full_filename, 'w') as f:
+                    f.write(stmt + '\n')
+            else:
+                raise RuntimeError('Invalid format: ' + format)
+        else:
+            print(stmt)
+
 
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(add_help=False)
+    # arguments similar to those for pg_dump
+    parser = argparse.ArgumentParser(add_help=False)  # add_help=False because of conflict with '-h'
     parser.add_argument('-h', '--host', required=True, dest='host')
     parser.add_argument('-U', '--user', required=True, dest='user')
     parser.add_argument('-d', '--dbname', required=True, dest='dbname')
     parser.add_argument('-W', '--password', required=True, dest='password')
     parser.add_argument('-p', '--port', default=5432, dest='port')
-    parser.add_argument('--schema', dest='schemaname')
-    parser.add_argument('--table', dest='tablename')
+    parser.add_argument('-f', '--file', default=False, dest='file',
+                        help='file/directory to write output to, defaults to standard output')
+    parser.add_argument('-F', '--format', default='directory', dest='format',
+                        choices=['directory'],
+                        help='Requires --file, valid options: directory')
+    parser.add_argument('-n', '--schema', dest='schemaname',
+                        help='Name of schema to show tables from, if not provided it will iterate over all non-system'
+                             'schemas')
+    parser.add_argument('-t', '--table', dest='tablename')
 
     args = parser.parse_args()
     main(
@@ -189,8 +252,9 @@ if __name__ == '__main__':
         args.user,
         args.password,
         args.dbname,
+        args.file,
+        args.format,
         args.schemaname,
         args.tablename,
-        args.port
+        args.port,
     )
-
