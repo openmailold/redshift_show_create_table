@@ -159,10 +159,10 @@ def build_stmts(table_defs, table_diststyles, table_infos):
         if diststyle:
             s += ' DISTSTYLE ' + diststyle
         s += ';\n'
-        yield table, s
+        yield schemaname, table, s
 
 
-# gets all non-system schemas
+# gets list of all non-system schemas
 def get_all_schemas(cur):
     skip_schemas = ['information_schema', 'pg_catalog', 'sys']
     sql = 'SELECT schemaname FROM pg_stat_all_tables GROUP BY schemaname'
@@ -180,14 +180,24 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
         host=host, port=port, database=dbname, user=user, password=password)
     cur = conn.cursor()
     try:
-        #if schemaname is None and tablename is None:  # scan all non-system schemas and tables
-
-        if schemaname:
+        if schemaname is None and tablename is None:  # scan all non-system schemas and tables
+            schema_list = get_all_schemas(cur)
+            search_path_sql = 'SET SEARCH_PATH = ' + (','.join(schema_list)) + ';'
+            #print search_path_sql
+            cur.execute(search_path_sql)
+        elif schemaname:
             cur.execute('SET SEARCH_PATH = %s;', (schemaname,))
-        table_diststyles = get_table_diststyles(cur, schemaname, tablename)
-        table_defs = get_table_defs(cur, schemaname, tablename)
-        table_infos = get_table_infos(cur, schemaname, tablename)
-        statements = build_stmts(table_defs, table_diststyles, table_infos)
+            schema_list = [schemaname]
+        else:
+            raise RuntimeError('If passing a table name, schema name must also be provided')
+
+        statements = []
+        for schema in schema_list:
+            table_diststyles = get_table_diststyles(cur, schema, tablename)
+            table_defs = get_table_defs(cur, schema, tablename)
+            table_infos = get_table_infos(cur, schema, tablename)
+            for s in build_stmts(table_defs, table_diststyles, table_infos):
+                statements.append(s)
         return statements
     finally:
         cur.close()
@@ -195,14 +205,14 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
 
 # TODO: deal with case where no schemaname specified
 def main(host, user, password, dbname, filename, format, schemaname=None, tablename=None, port=5432):
-    for table, stmt in show_create_table(
+    for schema, table, stmt in show_create_table(
             host, user, password, dbname, schemaname, tablename, port):
         if filename:
             if format == 'directory':
                 basedir = filename
                 if not path.exists(basedir):
                     makedirs(basedir)
-                schemadir = path.join(basedir, schemaname)
+                schemadir = path.join(basedir, schema)
                 if not path.exists(schemadir):
                     makedirs(schemadir)
                 full_filename = path.join(schemadir, table + '.sql')
