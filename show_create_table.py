@@ -2,7 +2,10 @@
 
 """
 'show create table' equivalent for aws redshift
+
+ Authors:
  xiuming chen <cc@cxm.cc>
+ Neil Halelamien
 """
 
 from os import path, makedirs
