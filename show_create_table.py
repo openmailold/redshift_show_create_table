@@ -50,6 +50,8 @@ DISTSTYLES = {
     8: 'ALL',
 }
 
+SYSTEM_SCHEMAS = ['information_schema', 'pg_catalog', 'sys']
+
 
 def get_table_diststyles(cur, schemaname, tablename):
     sql = '''
@@ -171,13 +173,12 @@ def build_stmts(table_defs, table_diststyles, table_infos):
 
 # gets list of all non-system schemas
 def get_all_schemas(cur):
-    skip_schemas = ['information_schema', 'pg_catalog', 'sys']
     sql = 'SELECT schemaname FROM pg_stat_all_tables GROUP BY schemaname'
     cur.execute(sql)
     schemas = []
     for s in cur.fetchall():
         schema = s[0]
-        if schema not in skip_schemas:
+        if schema not in SYSTEM_SCHEMAS:
             schemas.append(schema)
     return schemas
 
