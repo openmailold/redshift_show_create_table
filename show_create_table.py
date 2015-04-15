@@ -123,7 +123,21 @@ def group_table_defs(table_defs):
         yield defs
 
 
-def build_stmts(table_defs, table_diststyles, table_infos):
+def format_comment(table, schema, owner, tablespace, model_type='TABLE'):
+    comment = ('--\n'
+               '-- Name: %(table)s; Type: %(model_type)s; Schema: %(schema)s; Owner: %(owner)s; Tablespace: %(tablespace)s\n'
+               '--\n\n') \
+              % {
+                  'table': table,
+                  'schema': schema,
+                  'owner': owner,
+                  'model_type': model_type,
+                  'tablespace': tablespace,
+              }
+    return comment
+
+
+def build_table_stmts(table_defs, table_diststyles, table_infos):
     for defs in group_table_defs(table_defs):
         schemaname = defs[0]['schemaname']
         tablename = defs[0]['tablename']
@@ -134,15 +148,7 @@ def build_stmts(table_defs, table_diststyles, table_infos):
             space = table_info['space'] or ''
         else:
             owner = space = ''
-        s = ('--\n'
-             '-- Name: %(table)s; Type: TABLE; Schema: %(schema)s; Owner: %(owner)s; Tablespace: %(space)s\n'
-             '--\n\n') \
-            % {
-                'table': tablename,
-                'schema': schemaname,
-                'owner': owner,
-                'space': space,
-                }
+        s = format_comment(tablename, schemaname, owner, space)
         s += 'CREATE TABLE %s (\n' % table
         cols = []
         for d in defs:
@@ -169,6 +175,24 @@ def build_stmts(table_defs, table_diststyles, table_infos):
             s += ' DISTSTYLE ' + diststyle
         s += ';\n'
         yield schemaname, table, s
+
+
+def build_view_stmts_for_schema(cur, schema):
+    sql = '''
+    SELECT c.relname, pg_get_userbyid(c.relowner) AS owner, pg_get_viewdef(c.oid) AS definition
+    FROM pg_class c
+    LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relkind = 'v'::"char" and nspname = %(schema)s
+    '''
+    cur.execute(sql, {'schema': schema})
+    for v in cur.fetchall():
+        view_name = v[0]
+        owner = v[1]
+        base_statement = v[2]
+        s = format_comment(view_name, schema, owner, tablespace='', model_type='VIEW')
+        s += 'CREATE OR REPLACE VIEW %s AS' % get_table_name(schema, view_name)
+        s += '\n' + base_statement + '\n'
+        yield schema, view_name, s
 
 
 # gets list of all non-system schemas
@@ -203,7 +227,9 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
             table_diststyles = get_table_diststyles(cur, schema, tablename)
             table_defs = get_table_defs(cur, schema, tablename)
             table_infos = get_table_infos(cur, schema, tablename)
-            for s in build_stmts(table_defs, table_diststyles, table_infos):
+            for s in build_table_stmts(table_defs, table_diststyles, table_infos):
+                statements.append(s)
+            for s in build_view_stmts_for_schema(cur, schema):
                 statements.append(s)
         return statements
     finally:
