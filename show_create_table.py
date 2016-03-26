@@ -151,6 +151,7 @@ def build_table_stmts(table_defs, table_diststyles, table_infos):
         s = format_comment(tablename, schemaname, owner, space)
         s += 'CREATE TABLE %s (\n' % table
         cols = []
+        sk = {}
         for d in defs:
             c = [
                 '"%s"' % d['column'],
@@ -162,7 +163,7 @@ def build_table_stmts(table_defs, table_diststyles, table_infos):
             if d['distkey']:
                 c.append('DISTKEY')
             if d['sortkey']:
-                c.append('SORTKEY')
+                sk[int(d['sortkey'])] = d['column']
             if d['notnull']:
                 c.append('NOT NULL')
             if d['hasdef']:
@@ -173,6 +174,8 @@ def build_table_stmts(table_defs, table_diststyles, table_infos):
         diststyle = table_diststyles.get(table)
         if diststyle:
             s += ' DISTSTYLE ' + diststyle
+        if sk:
+            s += ' SORTKEY ("%s")' % '", "'.join([sk[k] for k in sorted(sk)])
         s += ';\n'
         yield schemaname, table, s
 
