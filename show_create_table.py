@@ -152,6 +152,7 @@ def build_table_stmts(table_defs, table_diststyles, table_infos):
         s += 'CREATE TABLE %s (\n' % table
         cols = []
         sk = {}
+        interleaved = False
         for d in defs:
             c = [
                 '"%s"' % d['column'],
@@ -163,7 +164,9 @@ def build_table_stmts(table_defs, table_diststyles, table_infos):
             if d['distkey']:
                 c.append('DISTKEY')
             if d['sortkey']:
-                sk[int(d['sortkey'])] = d['column']
+                if d['sortkey'] < 0:
+                    interleaved = True;
+                sk[int(abs(d['sortkey']))] = d['column']
             if d['notnull']:
                 c.append('NOT NULL')
             if d['hasdef']:
@@ -175,6 +178,8 @@ def build_table_stmts(table_defs, table_diststyles, table_infos):
         if diststyle:
             s += ' DISTSTYLE ' + diststyle
         if sk:
+            if interleaved:
+                s += ' INTERLEAVED'
             s += ' SORTKEY ("%s")' % '", "'.join([sk[k] for k in sorted(sk)])
         s += ';\n'
         yield schemaname, table, s
