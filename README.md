@@ -5,7 +5,7 @@ python script, 'show create table' equivalent for aws redshift. Command-line syn
 
 Basic usage: 
 ```
-show_create_table.py -h HOST -U USER -d DBNAME [-W PASSWORD] [-p PORT]
+./show_create_table.py -h HOST -U USER -d DBNAME [-W PASSWORD] [-p PORT]
 [-f FILE] [-F {directory}] [-n SCHEMANAME]
 [-t TABLENAME] [-c PGPASS_FILE]
 ```
