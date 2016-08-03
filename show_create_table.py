@@ -8,7 +8,7 @@
  Neil Halelamien
 """
 
-from os import path, makedirs, environ
+from os import path, makedirs
 
 import psycopg2
 
@@ -248,10 +248,7 @@ def show_create_table(host, user, dbname, schemaname=None, tablename=None, port=
         cur.close()
 
 
-def main(host, user, dbname, filename, file_format, schemaname=None, tablename=None, port=5432, password=None, pgpass_file=None):
-    if pgpass_file:
-        environ['PGPASSFILE']=pgpass_file
-
+def main(host, user, dbname, filename, file_format, schemaname=None, tablename=None, port=5432, password=None):
     for schema, table, stmt in show_create_table(
             host, user, dbname, schemaname, tablename, port, password):
         if filename:
@@ -281,7 +278,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dbname', required=True, dest='dbname')
     parser.add_argument('-W', '--password', required=False, dest='password',
                         help='If no password is provided, the connector will attempt to authorize with .pgpass file in user\'s home directory, '
-                        'or the file specified in \'-c/--credential\' argument')
+                        'or the file defined in PGPASSFILE system variable')
     parser.add_argument('-p', '--port', default=5432, dest='port')
     parser.add_argument('-f', '--file', default=False, dest='file',
                         help='file/directory to write output to, defaults to standard output')
@@ -292,9 +289,6 @@ if __name__ == '__main__':
                         help='Name of schema to show tables from, if not provided it will iterate over all non-system'
                              'schemas')
     parser.add_argument('-t', '--table', dest='tablename')
-    parser.add_argument('-c', '--credential', dest='pgpass_file',
-                        help='If provided, it will authorize postgres login attempt with colon-delimited connection string specified in credential file.' 
-                        'i.e "hostname:port:database:username:password"')
 
     args = parser.parse_args()
     main(
@@ -307,5 +301,4 @@ if __name__ == '__main__':
         args.tablename,
         args.port,
         args.password,
-        args.pgpass_file,
     )
