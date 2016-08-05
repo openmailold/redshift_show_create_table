@@ -1,6 +1,8 @@
 # redshift_show_create_table
 python script, 'show create table' equivalent for aws redshift. Command-line syntax is similar to pg_dump.
 
+Another option for getting this information is the `v_generate_tbl_ddl.sql` admin view from AWS Labs: https://github.com/awslabs/amazon-redshift-utils/blob/master/src/AdminViews/
+
 # Command-line parameters
 
 Basic usage: 
