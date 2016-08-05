@@ -5,7 +5,7 @@ python script, 'show create table' equivalent for aws redshift. Command-line syn
 
 Basic usage: 
 ```
-./show_create_table.py -h HOST -U USER -d DBNAME -W PASSWORD [-p PORT]
+./show_create_table.py -h HOST -U USER -d DBNAME [-W PASSWORD] [-p PORT]
 [-f FILE] [-F {directory}] [-n SCHEMANAME]
 [-t TABLENAME]
 ```
@@ -14,9 +14,9 @@ Basic usage:
 * [-h/--host=] HOSTNAME: hostname for Redshift database 
 * [-U/--user=] USERNAME: username to connect to Redshift database with
 * [-d/--dbname=] DBNAME: name of database to connect to on host
-* [-W/--password=] PASSWORD: Redshift password for username
 
 ## Optional parameters
+* [-W/--password=] PASSWORD: Redshift password for username. If not provided, it will look for .pgpass credential file under user home directory, or file defined in PGPASSFILE system variable. See https://www.postgresql.org/docs/9.1/static/libpq-pgpass.html
 * [-p/--port=] PORT: port to connect to, defaults to 5432
 * [-f/--file=] FILE: file/directory to write output to, defaults to standard output
 * [-F/--format=] FORMAT: requires --file, currently only valid option (and default) is 'directory',

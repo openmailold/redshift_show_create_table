@@ -215,9 +215,13 @@ def get_all_schemas(cur):
     return schemas
 
 
-def show_create_table(host, user, password, dbname, schemaname=None, tablename=None, port=5432):
-    conn = psycopg2.connect(
-        host=host, port=port, database=dbname, user=user, password=password)
+def show_create_table(host, user, dbname, schemaname=None, tablename=None, port=5432, password=None):
+    if password:
+        conn = psycopg2.connect(
+            host=host, port=port, database=dbname, user=user, password=password)
+    else:
+        conn = psycopg2.connect(
+            host=host, port=port, database=dbname, user=user)
     cur = conn.cursor()
     try:
         if schemaname is None and tablename is None:  # scan all non-system schemas and tables
@@ -244,9 +248,9 @@ def show_create_table(host, user, password, dbname, schemaname=None, tablename=N
         cur.close()
 
 
-def main(host, user, password, dbname, filename, file_format, schemaname=None, tablename=None, port=5432):
+def main(host, user, dbname, filename, file_format, schemaname=None, tablename=None, port=5432, password=None):
     for schema, table, stmt in show_create_table(
-            host, user, password, dbname, schemaname, tablename, port):
+            host, user, dbname, schemaname, tablename, port, password):
         if filename:
             if file_format == 'directory':
                 basedir = filename
@@ -272,7 +276,9 @@ if __name__ == '__main__':
     parser.add_argument('-h', '--host', required=True, dest='host')
     parser.add_argument('-U', '--user', required=True, dest='user')
     parser.add_argument('-d', '--dbname', required=True, dest='dbname')
-    parser.add_argument('-W', '--password', required=True, dest='password')
+    parser.add_argument('-W', '--password', required=False, dest='password',
+                        help='If no password is provided, the connector will attempt to authorize with .pgpass file in user\'s home directory, '
+                        'or the file defined in PGPASSFILE system variable')
     parser.add_argument('-p', '--port', default=5432, dest='port')
     parser.add_argument('-f', '--file', default=False, dest='file',
                         help='file/directory to write output to, defaults to standard output')
@@ -288,11 +294,11 @@ if __name__ == '__main__':
     main(
         args.host,
         args.user,
-        args.password,
         args.dbname,
         args.file,
         args.format,
         args.schemaname,
         args.tablename,
         args.port,
+        args.password,
     )
